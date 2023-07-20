@@ -1,8 +1,5 @@
 from LRFHSS_ALOHA import *
-from joblib import Parallel, delayed
 import simpy
-import pandas as pd
-import time
 
 #Default variables
 nNodes = 500
