@@ -16,9 +16,9 @@ P_THRESHOLD = np.ceil(N_PAYLOADS/3)
 W_TRANSCEIVER = 0.006472 #Probably mentioned in some datasheet, I'm just trusting Asad on this at the moment.
 AVG_INTERVAL = 900
 N_OBW = 35 #There are 280 available, but they are divided into 8x35 channels. So, each transmission has 35 channels to hop. We use 35 to improve the simulation speed.
-WINDOW_SIZE = 5 
+WINDOW_SIZE = 5
 WINDOW_STEP = 0.5 
-SIC_ENABLED = False
+#SIC_ENABLED = True
 
 FRAGMENT_ID = 0 #global that tracks unique fragment id generation. Increments every fragment creation
 PACKET_ID = 0 #global that tracks unique packet id generation. Increments every packet creation
@@ -75,7 +75,7 @@ class Node():
 
 
 class Base():
-    def __init__(self, nNodes):
+    def __init__(self, nNodes, sic):
         self.transmitting = {}
         for channel in range(N_OBW):
             self.transmitting[channel] = []
@@ -85,6 +85,7 @@ class Base():
         self.packets_received = {}
         for n in range(nNodes):
             self.packets_received[n] = 0 
+        self.sic = sic
 
     def add(self, fragment):
         self.transmitting[fragment.channel].append(fragment)
@@ -107,10 +108,10 @@ class Base():
         if success == 1:
             self.packets_received[packet.node_id] += 1
             packet.success = 1
-            if SIC_ENABLED:
+            if self.sic:
                 for f in packet.fragments:
                     f.success = 1
-                    for c in f.collided:
+                    for c in list(f.collided):
                         f.collided.remove(c)
                         c.collided.remove(f)
             return True
@@ -123,34 +124,39 @@ class Base():
         node.packet = Packet(node.id)
 
     def sic_window(self, env):
-        if not SIC_ENABLED:
+        if not self.sic:
             raise SyntaxError('sic_window() can not be used with SIC_ENABLED flag as False')
+        yield env.timeout(self.window_size)
         while(1):
             #FIRST: Remove fragments from memory that are outside the window.
-            for p in self.memory:
-                for f in p.fragments:
-                    if self.in_window(f, env.now):
-                        p.fragments.remove(f)
-                if len(p.fragments) == 0:
-                    self.memory.remove(p)
+            for p in list(self.memory):
+                for f in list(self.memory[p].fragments):
+                    if not self.in_window(f, env.now):
+                        self.memory[p].fragments.remove(f)
+                    else:
+                        break
+                if len(self.memory[p].fragments) == 0:
+                    del(self.memory[p])
             
             #SECOND: Apply interference cancellation
             new_recover = True #variable to check if at least on packet was recovered due SIC
                        #if it did, we need to do the same procedure again until no new packet is recovered
             while(new_recover):
-                failed_packets = (p for p in self.memory if p.success == 0)
-                aux = False
+                failed_packets = (p for p in self.memory.values() if p.success == 0)
+                new_recover = False
                 for p in failed_packets:
                     if self.try_decode(p):
-                        aux = True
+                        new_recover = True
 
             yield env.timeout(self.window_step)
 
+
     def in_window(self, fragment, now):
-        return True if (now - fragment.timestamp)>=WINDOW_SIZE else False
+        return True if (now - fragment.timestamp)<=WINDOW_SIZE else False
 
 
-def transmit(env, bs, node):
+def transmit(env, bs, node, sic):
+    SIC_ENABLED = sic
     while 1:
         #time between transmissions
         yield env.timeout(random.expovariate(1/node.avg_interval))
