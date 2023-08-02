@@ -14,10 +14,11 @@ L_PAYLOADS = 0.050
 #L_PAYLOADS = 0.1024
 P_THRESHOLD = np.ceil(N_PAYLOADS/3).astype('int')
 W_TRANSCEIVER = 0.006472 #Probably mentioned in some datasheet, I'm just trusting Asad on this at the moment.
+TX_TOA = N_HEADERS*L_HEADERS + N_PAYLOADS*L_PAYLOADS + W_TRANSCEIVER #Transmission duration/Time-on-Air
 AVG_INTERVAL = 900
 N_OBW = 35 #There are 280 available, but they are divided into 8x35 channels. So, each transmission has 35 channels to hop. We use 35 to improve the simulation speed.
-WINDOW_SIZE = 5
-WINDOW_STEP = 0.5 
+WINDOW_SIZE = 2  #SIC window size normalized by the transmission duration.
+WINDOW_STEP = 0.25 #SIC window step normalized by the transmission duration.
 #SIC_ENABLED = True
 
 FRAGMENT_ID = 0 #global that tracks unique fragment id generation. Increments every fragment creation
@@ -80,8 +81,8 @@ class Base():
         for channel in range(N_OBW):
             self.transmitting[channel] = []
         self.memory = {}
-        self.window_size = WINDOW_SIZE 
-        self.window_step = WINDOW_STEP
+        self.window_size = WINDOW_SIZE*TX_TOA
+        self.window_step = WINDOW_STEP*TX_TOA
         self.packets_received = {}
         for n in range(nNodes):
             self.packets_received[n] = 0 
@@ -152,7 +153,7 @@ class Base():
 
 
     def in_window(self, fragment, now):
-        return True if (now - fragment.timestamp)<=WINDOW_SIZE else False
+        return True if (now - fragment.timestamp)<=self.window_size else False
 
 
 def transmit(env, bs, node, sic):
