@@ -8,10 +8,8 @@ PAYLOAD_SIZE = 10
 #Values from Regional Parameters document: https://resources.lora-alliance.org/technical-specifications/rp2-1-0-3-lorawan-regional-parameters
 N_HEADERS = 3
 L_HEADERS = 0.233472
-N_PAYLOADS = 13
-#N_PAYLOADS = int(np.ceil((PAYLOAD_SIZE+3)/2))
-L_PAYLOADS = 0.050
-#L_PAYLOADS = 0.1024
+N_PAYLOADS = int(np.ceil((PAYLOAD_SIZE+3)/2))
+L_PAYLOADS = 0.1024
 P_THRESHOLD = np.ceil(N_PAYLOADS/3).astype('int')
 W_TRANSCEIVER = 0.006472 #Probably mentioned in some datasheet, I'm just trusting Asad on this at the moment.
 TX_TOA = N_HEADERS*L_HEADERS + N_PAYLOADS*L_PAYLOADS + W_TRANSCEIVER #Transmission duration/Time-on-Air
@@ -19,7 +17,6 @@ AVG_INTERVAL = 900
 N_OBW = 35 #There are 280 available, but they are divided into 8x35 channels. So, each transmission has 35 channels to hop. We use 35 to improve the simulation speed.
 WINDOW_SIZE = 2  #SIC window size normalized by the transmission duration.
 WINDOW_STEP = 0.25 #SIC window step normalized by the transmission duration.
-#SIC_ENABLED = True
 
 FRAGMENT_ID = 0 #global that tracks unique fragment id generation. Increments every fragment creation
 PACKET_ID = 0 #global that tracks unique packet id generation. Increments every packet creation
