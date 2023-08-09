@@ -1,9 +1,6 @@
 import random
 import numpy as np
 
-#These are the overall network parameters. In this early version, we will use the as global variables to avoid too many input parameters.
-#Later we can move the most important outside the code, to facilitate changing it without opening the source code.
-
 PAYLOAD_SIZE = 10
 #Values from Regional Parameters document: https://resources.lora-alliance.org/technical-specifications/rp2-1-0-3-lorawan-regional-parameters
 N_HEADERS = 3
@@ -15,40 +12,33 @@ W_TRANSCEIVER = 0.006472 #Probably mentioned in some datasheet, I'm just trustin
 TX_TOA = N_HEADERS*L_HEADERS + N_PAYLOADS*L_PAYLOADS + W_TRANSCEIVER #Transmission duration/Time-on-Air
 AVG_INTERVAL = 900
 N_OBW = 35 #There are 280 available, but they are divided into 8x35 channels. So, each transmission has 35 channels to hop. We use 35 to improve the simulation speed.
-WINDOW_SIZE = 2  #SIC window size normalized by the transmission duration.
-WINDOW_STEP = 0.25 #SIC window step normalized by the transmission duration.
 
-FRAGMENT_ID = 0 #global that tracks unique fragment id generation. Increments every fragment creation
-PACKET_ID = 0 #global that tracks unique packet id generation. Increments every packet creation
 
+        
 class Fragment():
-    def __init__(self, type, length, channel, packet):
-        global FRAGMENT_ID
+    def __init__(self, type, duration, channel, packet):
         self.packet = packet
-        self.length = length
+        self.duration = duration
         self.success = 0
         self.transmitted = 0
         self.type = type
         self.channel = channel
         self.timestamp = 0
-        self.id = FRAGMENT_ID
-        FRAGMENT_ID += 1
+        self.id = id(self)
         self.collided = []
 
 class Packet():
-    def __init__(self, node_id, n_headers=N_HEADERS, l_header=L_HEADERS, n_payloads=N_PAYLOADS, l_payloads=L_PAYLOADS):
-        global PACKET_ID
-        self.id = PACKET_ID
-        PACKET_ID += 1
+    def __init__(self, node_id, obw, headers, payloads, header_duration, payload_duration):
+        self.id = id(self)
         self.node_id = node_id
         self.index_transmission = 0
         self.success = 0
-        self.new_channels()
+        self.new_channels(obw, headers+payloads)
         self.fragments = []
-        for headers in range(n_headers):
-            self.fragments.append(Fragment('header',l_header, random.sample(self.channels,1)[0], self.id))
-        for payloads in range(n_payloads):
-            self.fragments.append(Fragment('payload',l_payloads, random.sample(self.channels,1)[0], self.id))
+        for h in range(headers):
+            self.fragments.append(Fragment('header',header_duration, self.channels[h], self.id))
+        for p in range(payloads):
+            self.fragments.append(Fragment('payload',payload_duration, self.channels[p+h+1], self.id))
 
     def next(self):
         self.index_transmission+=1
@@ -59,33 +49,47 @@ class Packet():
         
 #    def check_success(self):
         
-# Later, we will implement the grid selection on this function. Right now, it is selecting one out of 35 channels on a grid for each fragment.
-    def new_channels(self):
-        self.channels = random.sample(range(N_OBW), N_OBW)
+# Instead of grid selection, we consider one grid of obw (usually 35 for EU) channels, as it is faster to simulate and extrapolate the number.
+# Later we can implement the grid selection in case of interest of studying it.
+    def new_channels(self, obw, fragments):
+        self.channels = random.sample(range(obw), fragments)
 
 
 class Node():
-    def __init__(self, id):
-        self.id = id
+    def __init__(self, average_interval, obw, headers, payloads, header_duration, payload_duration):
+        self.id = id(self)
         self.transmitted = 0
-        self.avg_interval = AVG_INTERVAL
-        self.packet = Packet(self.id)
+        self.average_interval = average_interval
+
+        # Packet info that Node has to store
+        self.average_interval = average_interval
+        self.obw = obw
+        self.headers = headers
+        self.payloads = payloads
+        self.header_duration = header_duration
+        self.payload_duration = payload_duration
+        self.packet = Packet(self.id, self.obw, self.headers, self.payloads, self.header_duration, self.payload_duration)
+
+    def end_of_transmission(self):
+        self.packet = Packet(self.id, self.obw, self.headers, self.payloads, self.header_duration, self.payload_duration)
 
 
 class Base():
-    def __init__(self, nNodes, sic):
+    def __init__(self, number_nodes, sic, window_size, window_step, time_on_air):
+        self.id = id(self)
         self.transmitting = {}
         for channel in range(N_OBW):
             self.transmitting[channel] = []
         self.memory = {}
-        self.window_size = WINDOW_SIZE*TX_TOA
-        self.window_step = WINDOW_STEP*TX_TOA
+        self.window_size = window_size*time_on_air
+        self.window_step = window_step*time_on_air
         self.packets_received = {}
-        for n in range(nNodes):
-            self.packets_received[n] = 0 
         self.sic = sic
 
-    def add(self, fragment):
+    def add_node(self, id):
+        self.packets_received[id] = 0
+
+    def add_fragment(self, fragment):
         self.transmitting[fragment.channel].append(fragment)
 
     def remove(self, fragment):
@@ -99,7 +103,12 @@ class Base():
             f.collided.append(fragment)
             fragment.collided.append(f)
 
-    def try_decode(self,packet):
+    def try_decode(self,packet,now):
+        for f in list(packet.fragments):
+            if not self.in_window(f, now):
+                packet.fragments.remove(f)
+            else:
+                break
         h_success = sum( ((len(f.collided)==0) and f.transmitted==1) if (f.type=='header') else 0 for f in packet.fragments)
         p_success = sum( ((len(f.collided)==0) and f.transmitted==1) if (f.type=='payload') else 0 for f in packet.fragments)
         success = 1 if ((h_success>0) and (p_success >= P_THRESHOLD)) else 0
@@ -116,14 +125,9 @@ class Base():
         else:
             return False
 
-
-# This method will be moved to Base() class in future versions
-    def end_of_transmission(self, node):
-        node.packet = Packet(node.id)
-
     def sic_window(self, env):
         if not self.sic:
-            raise SyntaxError('sic_window() can not be used with SIC_ENABLED flag as False')
+            raise SyntaxError('sic_window() can not be used with sic flag as False')
         yield env.timeout(self.window_size)
         while(1):
             #FIRST: Remove fragments from memory that are outside the window.
@@ -143,7 +147,7 @@ class Base():
                 failed_packets = (p for p in self.memory.values() if p.success == 0)
                 new_recover = False
                 for p in failed_packets:
-                    if self.try_decode(p):
+                    if self.try_decode(p,env.now):
                         new_recover = True
 
             yield env.timeout(self.window_step)
@@ -153,35 +157,34 @@ class Base():
         return True if (now - fragment.timestamp)<=self.window_size else False
 
 
-def transmit(env, bs, node, sic):
-    SIC_ENABLED = sic
+def transmit(env, bs, node, sic, transceiver_wait):
     while 1:
         #time between transmissions
-        yield env.timeout(random.expovariate(1/node.avg_interval))
+        yield env.timeout(random.expovariate(1/node.average_interval))
         node.transmitted += 1
-        if SIC_ENABLED:
+        if sic:
             bs.memory[node.packet.id] = node.packet
         next_fragment = node.packet.next()
         first_payload = 0
         while next_fragment:
             if first_payload == 0 and next_fragment.type=='payload': #account for the transceiver wait time between the last header and first payload fragment
                 first_payload=1
-                yield env.timeout(W_TRANSCEIVER)
+                yield env.timeout(transceiver_wait)
             next_fragment.timestamp = env.now
             #checks if the fragment is colliding with the fragments in transmission now
             bs.check_collision(next_fragment)
             #add the fragment to the list of fragments being transmitted.
-            bs.add(next_fragment)
-            #wait the length (time on air) of the fragment
-            yield env.timeout(next_fragment.length)
+            bs.add_fragment(next_fragment)
+            #wait the duration (time on air) of the fragment
+            yield env.timeout(next_fragment.duration)
             #removes the fragment from the list.
             bs.remove(next_fragment)
             #check if base can decode the packet now.
             #tries to decode if not decoded yet.
             if node.packet.success == 0:
-                bs.try_decode(node.packet)
+                bs.try_decode(node.packet,env.now)
             #select the next fragment
             next_fragment = node.packet.next()
         
         #end of transmission procedure
-        bs.end_of_transmission(node)
+        node.end_of_transmission()
