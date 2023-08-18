@@ -1,17 +1,17 @@
 import random
 import numpy as np
 
-PAYLOAD_SIZE = 10
+#PAYLOAD_SIZE = 10
 #Values from Regional Parameters document: https://resources.lora-alliance.org/technical-specifications/rp2-1-0-3-lorawan-regional-parameters
-N_HEADERS = 3
-L_HEADERS = 0.233472
-N_PAYLOADS = int(np.ceil((PAYLOAD_SIZE+3)/2))
-L_PAYLOADS = 0.1024
-P_THRESHOLD = np.ceil(N_PAYLOADS/3).astype('int')
-W_TRANSCEIVER = 0.006472 #Probably mentioned in some datasheet, I'm just trusting Asad on this at the moment.
-TX_TOA = N_HEADERS*L_HEADERS + N_PAYLOADS*L_PAYLOADS + W_TRANSCEIVER #Transmission duration/Time-on-Air
-AVG_INTERVAL = 900
-N_OBW = 35 #There are 280 available, but they are divided into 8x35 channels. So, each transmission has 35 channels to hop. We use 35 to improve the simulation speed.
+#N_HEADERS = 3
+#L_HEADERS = 0.233472
+#N_PAYLOADS = int(np.ceil((PAYLOAD_SIZE+3)/2))
+#L_PAYLOADS = 0.1024
+#P_THRESHOLD = np.ceil(N_PAYLOADS/3).astype('int')
+#W_TRANSCEIVER = 0.006472 #Probably mentioned in some datasheet, I'm just trusting Asad on this at the moment.
+#TX_TOA = N_HEADERS*L_HEADERS + N_PAYLOADS*L_PAYLOADS + W_TRANSCEIVER #Transmission duration/Time-on-Air
+#AVG_INTERVAL = 900
+#N_OBW = 35 #There are 280 available, but they are divided into 8x35 channels. So, each transmission has 35 channels to hop. We use 35 to improve the simulation speed.
 
 
         
@@ -75,16 +75,17 @@ class Node():
 
 
 class Base():
-    def __init__(self, number_nodes, sic, window_size, window_step, time_on_air):
+    def __init__(self, obw, sic, window_size, window_step, time_on_air, threshold):
         self.id = id(self)
         self.transmitting = {}
-        for channel in range(N_OBW):
+        for channel in range(obw):
             self.transmitting[channel] = []
         self.memory = {}
         self.window_size = window_size*time_on_air
         self.window_step = window_step*time_on_air
         self.packets_received = {}
         self.sic = sic
+        self.threshold = threshold
 
     def add_node(self, id):
         self.packets_received[id] = 0
@@ -111,7 +112,7 @@ class Base():
                 break
         h_success = sum( ((len(f.collided)==0) and f.transmitted==1) if (f.type=='header') else 0 for f in packet.fragments)
         p_success = sum( ((len(f.collided)==0) and f.transmitted==1) if (f.type=='payload') else 0 for f in packet.fragments)
-        success = 1 if ((h_success>0) and (p_success >= P_THRESHOLD)) else 0
+        success = 1 if ((h_success>0) and (p_success >= self.threshold)) else 0
         if success == 1:
             self.packets_received[packet.node_id] += 1
             packet.success = 1

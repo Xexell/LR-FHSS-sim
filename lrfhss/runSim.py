@@ -58,7 +58,7 @@ class Settings():
 def run_sim(settings: Settings, seed=0):
     random.seed(seed)
     np.random.seed(seed)
-    bs = Base(settings.number_nodes, settings.sic, settings.window_size, settings.window_step, settings.time_on_air)
+    bs = Base(settings.obw, settings.sic, settings.window_size, settings.window_step, settings.time_on_air, settings.threshold)
     env = simpy.Environment()
     nodes = []
 
