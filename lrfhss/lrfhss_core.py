@@ -1,18 +1,58 @@
 import random
 import numpy as np
+import warnings
 
-#PAYLOAD_SIZE = 10
-#Values from Regional Parameters document: https://resources.lora-alliance.org/technical-specifications/rp2-1-0-3-lorawan-regional-parameters
-#N_HEADERS = 3
-#L_HEADERS = 0.233472
-#N_PAYLOADS = int(np.ceil((PAYLOAD_SIZE+3)/2))
-#L_PAYLOADS = 0.1024
-#P_THRESHOLD = np.ceil(N_PAYLOADS/3).astype('int')
-#W_TRANSCEIVER = 0.006472 #Probably mentioned in some datasheet, I'm just trusting Asad on this at the moment.
-#TX_TOA = N_HEADERS*L_HEADERS + N_PAYLOADS*L_PAYLOADS + W_TRANSCEIVER #Transmission duration/Time-on-Air
-#AVG_INTERVAL = 900
-#N_OBW = 35 #There are 280 available, but they are divided into 8x35 channels. So, each transmission has 35 channels to hop. We use 35 to improve the simulation speed.
+class Settings():
+    def __init__(self, number_nodes=80000//8, simulation_time=60*60, payload_size = 10, headers = 3, header_duration = 0.233472, payloads = None, threshold = None, payload_duration = 0.1024,
+                 code = '1/3', average_interval = 900, transceiver_wait = 0.006472, obw = 35, sic=False, window_size = 2, window_step = 0.5):
+        
+        self.number_nodes = number_nodes
+        self.simulation_time = simulation_time
+        self.payload_size = payload_size
+        self.headers = headers
+        self.header_duration = header_duration
+        self.payload_duration = payload_duration
+        self.transceiver_wait = transceiver_wait
+        self.average_interval = average_interval
+        self.obw = obw
+        self.sic = sic
+        self.window_size = window_size
+        self.window_step = window_step
 
+        if payloads:
+            self.payloads = payloads
+        if threshold:
+            self.threshold = threshold
+        if not (payloads and threshold):
+            match code:
+                case '1/3':
+                    if not payloads:
+                        self.payloads = np.ceil((payload_size+3)/2).astype('int')
+                    if not threshold:
+                        self.threshold = np.ceil(self.payloads/3).astype('int')
+                case '2/3':
+                    if not payloads:
+                        self.payloads = np.ceil((payload_size+3)/4).astype('int')
+                    if not threshold:
+                        self.threshold = np.ceil((2*self.payloads)/3).astype('int')
+                case '5/6':
+                    if not payloads:
+                        self.payloads = np.ceil((payload_size+3)/5).astype('int')
+                    if not threshold:
+                        self.threshold = np.ceil((5*self.payloads)/6).astype('int')
+                case '1/2':
+                    if not payloads:
+                        self.payloads = np.ceil((payload_size+3)/3).astype('int')
+                    if not threshold:
+                        self.threshold = np.ceil((self.payloads)/2).astype('int')
+                case _:
+                    warnings.warn(f'code = {code} is not a valid input. Using 1/3 instead.')
+                    if not payloads:
+                        self.payloads = np.ceil((payload_size+3)/2).astype('int')
+                    if not threshold:
+                        self.threshold = np.ceil(self.payloads/3).astype('int')
+        
+        self.time_on_air = self.header_duration*self.headers + self.payload_duration*self.payloads + self.transceiver_wait
 
         
 class Fragment():
