@@ -3,6 +3,7 @@ LR-FHSS event-driven simulator built in python.
 
 ## Instalation Guide
 * pip:
+  
 Download the source code and extract it to a folder.
 
 Open a terminal in the folder and execute the following to install the prerequisites libraries.
