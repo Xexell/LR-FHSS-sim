@@ -1,3 +1,8 @@
+# Results and data
+results/
+figures/
+*.data
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

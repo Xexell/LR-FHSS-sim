@@ -1,16 +1,28 @@
 # LR-FHSS-sim
 LR-FHSS event-driven simulator built in python.
 
+## Instalation Guide
+* pip:
+  
+Download the source code and extract it to a folder.
 
-## Version 0.2
-* Assumes all nodes are in coverage
-* Pure ALOHA with destructive collisions (no capture)
-* EU DR8 datarate parameters (can be easily changed with global variables at source code)
-* Outputs average network success probability
-* Considers one channel grid of 35 subchannels
-* Using standard transmission values from Asad's work, should be changed to specification values in future versions.
-### New features
-* SIC decoding on fragments
-* Gateway can remove fragments from decoded packets
-* Gateway keeps the received packets/fragments on memory for a predetermined time window, which advances with a predetermined step.
-* Without SIC, consider a gateway with memory equals to the transmission length. With SIC and sic_window smaller than the transmission length, the gateway may erase some fragments (the first to arrive, e.g., headers) before the end of transmission.
+Open a terminal in the folder and execute the following to install the prerequisites libraries.
+  ```sh
+  pip install -r requirements.txt
+  ```
+
+Run the following to install the library.
+  ```sh
+  pip install .
+  ```
+
+If you wish to make changes to the library, you can install it with the editable flag, so any changes to the source code will apply to the version installed.
+  ```sh
+  pip install -e .
+  ```
+
+## Usage
+
+The project contains two files. core.py contains the the main classes and features needed to run the simulation. This classe doesn't have any main procedure. In order to run the simulation, you have to built the simulation setup with the classes present in that file. The second file, run.py, is an example of a simulation setup. It simply builds a network with a certain amount of devices with certain input parameters, run it for a certain amount of time and returns the amount of successfully received packets divided by the amount of packets transmitted. For an example of how to use the run.py file, refer to the file examples/examples.ipynb.
+
+
