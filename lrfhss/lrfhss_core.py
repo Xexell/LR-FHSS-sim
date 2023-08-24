@@ -66,6 +66,8 @@ class Base():
         for channel in range(obw):
             self.transmitting[channel] = []
         self.packets_received = {}
+        self.header_failure = {}
+        self.fragment_failure = {}
         self.threshold = threshold
 
     def add_packet(self, packet):
@@ -73,6 +75,8 @@ class Base():
 
     def add_node(self, id):
         self.packets_received[id] = 0
+        self.header_failure[id] = 0
+        self.fragment_failure[id] = 0
 
     def receive_packet(self, fragment):
         self.transmitting[fragment.channel].append(fragment)
@@ -97,6 +101,8 @@ class Base():
             packet.success = 1
             return True
         else:
+            self.header_failure[packet.node_id] += h_success<1
+            self.fragment_failure[packet.node_id] += p_success<self.threshold
             return False
 
 
