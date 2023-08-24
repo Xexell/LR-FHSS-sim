@@ -73,7 +73,7 @@ class Packet():
         self.node_id = node_id
         self.index_transmission = 0
         self.success = 0
-        self.new_channels(obw, headers+payloads)
+        self.channels = random.sample(range(obw), headers+payloads)
         self.fragments = []
         for h in range(headers):
             self.fragments.append(Fragment('header',header_duration, self.channels[h], self.id))
@@ -115,25 +115,24 @@ class Node():
 
 
 class Base():
-    def __init__(self, obw, sic, window_size, window_step, time_on_air, threshold):
+    def __init__(self, obw, threshold):
         self.id = id(self)
         self.transmitting = {}
         for channel in range(obw):
             self.transmitting[channel] = []
-        self.memory = {}
-        self.window_size = window_size*time_on_air
-        self.window_step = window_step*time_on_air
         self.packets_received = {}
-        self.sic = sic
         self.threshold = threshold
+
+    def add_packet(self, packet):
+        pass
 
     def add_node(self, id):
         self.packets_received[id] = 0
 
-    def add_fragment(self, fragment):
+    def receive_packet(self, fragment):
         self.transmitting[fragment.channel].append(fragment)
 
-    def remove(self, fragment):
+    def finish_fragment(self, fragment):
         self.transmitting[fragment.channel].remove(fragment)
         if len(fragment.collided) == 0:
             fragment.success = 1
@@ -145,66 +144,24 @@ class Base():
             fragment.collided.append(f)
 
     def try_decode(self,packet,now):
-        for f in list(packet.fragments):
-            if not self.in_window(f, now):
-                packet.fragments.remove(f)
-            else:
-                break
         h_success = sum( ((len(f.collided)==0) and f.transmitted==1) if (f.type=='header') else 0 for f in packet.fragments)
         p_success = sum( ((len(f.collided)==0) and f.transmitted==1) if (f.type=='payload') else 0 for f in packet.fragments)
         success = 1 if ((h_success>0) and (p_success >= self.threshold)) else 0
         if success == 1:
             self.packets_received[packet.node_id] += 1
             packet.success = 1
-            if self.sic:
-                for f in packet.fragments:
-                    f.success = 1
-                    for c in list(f.collided):
-                        f.collided.remove(c)
-                        c.collided.remove(f)
             return True
         else:
             return False
 
-    def sic_window(self, env):
-        if not self.sic:
-            raise SyntaxError('sic_window() can not be used with sic flag as False')
-        yield env.timeout(self.window_size)
-        while(1):
-            #FIRST: Remove fragments from memory that are outside the window.
-            for p in list(self.memory):
-                for f in list(self.memory[p].fragments):
-                    if not self.in_window(f, env.now):
-                        self.memory[p].fragments.remove(f)
-                    else:
-                        break
-                if len(self.memory[p].fragments) == 0:
-                    del(self.memory[p])
-            
-            #SECOND: Apply interference cancellation
-            new_recover = True #variable to check if at least on packet was recovered due SIC
-                       #if it did, we need to do the same procedure again until no new packet is recovered
-            while(new_recover):
-                failed_packets = (p for p in self.memory.values() if p.success == 0)
-                new_recover = False
-                for p in failed_packets:
-                    if self.try_decode(p,env.now):
-                        new_recover = True
-
-            yield env.timeout(self.window_step)
 
 
-    def in_window(self, fragment, now):
-        return True if (now - fragment.timestamp)<=self.window_size else False
-
-
-def transmit(env, bs, node, sic, transceiver_wait):
+def transmit(env, bs, node, transceiver_wait):
     while 1:
         #time between transmissions
         yield env.timeout(random.expovariate(1/node.average_interval))
         node.transmitted += 1
-        if sic:
-            bs.memory[node.packet.id] = node.packet
+        bs.add_packet(node.packet)
         next_fragment = node.packet.next()
         first_payload = 0
         while next_fragment:
@@ -215,11 +172,11 @@ def transmit(env, bs, node, sic, transceiver_wait):
             #checks if the fragment is colliding with the fragments in transmission now
             bs.check_collision(next_fragment)
             #add the fragment to the list of fragments being transmitted.
-            bs.add_fragment(next_fragment)
+            bs.receive_packet(next_fragment)
             #wait the duration (time on air) of the fragment
             yield env.timeout(next_fragment.duration)
             #removes the fragment from the list.
-            bs.remove(next_fragment)
+            bs.finish_fragment(next_fragment)
             #check if base can decode the packet now.
             #tries to decode if not decoded yet.
             if node.packet.success == 0:
