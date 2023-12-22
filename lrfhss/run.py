@@ -25,8 +25,10 @@ def run_sim(settings: Settings, seed=0):
     # after simulation
     success = sum(bs.packets_received.values())
     transmitted = sum(n.transmitted for n in nodes) 
-
-    return success/transmitted
+    if transmitted == 0: #If no transmissions are made, we consider 100% success as there were no outages
+        return 1
+    else:
+        return [[success/transmitted], [success*settings.payload_size]]
 
 if __name__ == "__main__":
    s = Settings()
