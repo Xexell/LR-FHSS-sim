@@ -1,9 +1,12 @@
 import numpy as np
 import warnings
+from lrfhss.traffic import *
+import inspect
+
 
 class Settings():
     def __init__(self, number_nodes=80000//8, simulation_time=60*60, payload_size = 10, headers = 3, header_duration = 0.233472, payloads = None, threshold = None, payload_duration = 0.1024,
-                 code = '1/3', average_interval = 900, transceiver_wait = 0.006472, obw = 35, base='core', window_size = 2, window_step = 0.5):
+                 code = '1/3', traffic_func = exponential_traffic, traffic_param = {'average_interval': 900}, transceiver_wait = 0.006472, obw = 35, base='core', window_size = 2, window_step = 0.5):
         
         self.number_nodes = number_nodes
         self.simulation_time = simulation_time
@@ -12,7 +15,6 @@ class Settings():
         self.header_duration = header_duration
         self.payload_duration = payload_duration
         self.transceiver_wait = transceiver_wait
-        self.average_interval = average_interval
         self.obw = obw
         self.base = base
         self.window_size = window_size
@@ -52,3 +54,29 @@ class Settings():
                         self.threshold = np.ceil(self.payloads/3).astype('int')
         
         self.time_on_air = self.header_duration*self.headers + self.payload_duration*self.payloads + self.transceiver_wait
+
+        if inspect.isfunction(traffic_func):
+            self.traffic_func = traffic_func
+            self.traffic_param = traffic_param
+            match traffic_func.__name__:
+                case 'exponential_traffic':
+                    if not 'average_interval' in self.traffic_param:
+                        warnings.warn(f'traffic_param average_interval key missing for exponential_traffic. Using with average_interval=900 as default')
+                        self.traffic_param['average_interval'] = 900
+                case 'uniform_traffic':
+                    if not 'max_interval' in self.traffic_param:
+                        warnings.warn(f'traffic_param max_interval key missing for uniform_traffic. Using with max_interval=1800 as default')
+                        self.traffic_param['max_interval'] = 1800
+                case 'constant_traffic':
+                    if not 'constant_interval' in self.traffic_param:
+                        warnings.warn(f'traffic_param constant_interval key missing for constant_traffic. Using with constant_interval=900 as default')
+                        self.traffic_param['constant_interval'] = 900
+
+                    if not 'standard_deviation' in self.traffic_param:
+                        warnings.warn(f'traffic_param standard_deviation key missing for constant_traffic. Using with standard_deviation=900 as default')
+                        self.traffic_param['standard_deviation'] = 10
+                case _:
+                    warnings.warn(f'Using an unpredicted (not listed in settings.py) traffic function.')
+
+        else:
+            warnings.warn(f'traffic_func should be a function. Using exponential_traffic with average_interval=900 as default.')

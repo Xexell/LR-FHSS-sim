@@ -15,7 +15,7 @@ def run_sim(settings: Settings, seed=0):
     
     nodes = []
     for i in range(settings.number_nodes):
-        node = Node(settings.average_interval, settings.obw, settings.headers, settings.payloads, settings.header_duration, settings.payload_duration)
+        node = Node(settings.obw, settings.headers, settings.payloads, settings.header_duration, settings.payload_duration, settings.traffic_func, traffic_param=settings.traffic_param)
         bs.add_node(node.id)
         nodes.append(node)
         env.process(transmit(env, bs, node, settings.transceiver_wait))

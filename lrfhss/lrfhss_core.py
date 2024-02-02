@@ -41,19 +41,22 @@ class Packet():
 
 
 class Node():
-    def __init__(self, average_interval, obw, headers, payloads, header_duration, payload_duration):
+    def __init__(self, obw, headers, payloads, header_duration, payload_duration, traffic_func, traffic_param):
         self.id = id(self)
         self.transmitted = 0
-        self.average_interval = average_interval
+        self.traffic_func = traffic_func
+        self.traffic_param = traffic_param
 
         # Packet info that Node has to store
-        self.average_interval = average_interval
         self.obw = obw
         self.headers = headers
         self.payloads = payloads
         self.header_duration = header_duration
         self.payload_duration = payload_duration
         self.packet = Packet(self.id, self.obw, self.headers, self.payloads, self.header_duration, self.payload_duration)
+
+    def next_transmission(self):
+        return self.traffic_func(self)
 
     def end_of_transmission(self):
         self.packet = Packet(self.id, self.obw, self.headers, self.payloads, self.header_duration, self.payload_duration)
@@ -104,7 +107,7 @@ class Base():
 def transmit(env, bs, node, transceiver_wait):
     while 1:
         #time between transmissions
-        yield env.timeout(random.expovariate(1/node.average_interval))
+        yield env.timeout(node.next_transmission())
         node.transmitted += 1
         bs.add_packet(node.packet)
         next_fragment = node.packet.next()
