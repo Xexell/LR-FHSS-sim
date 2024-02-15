@@ -20,7 +20,7 @@ class Packet():
         self.node_id = node_id
         self.index_transmission = 0
         self.success = 0
-        self.channels = random.sample(range(obw), headers+payloads)
+        self.channels = random.choices(range(obw), k=headers+payloads)
         self.fragments = []
         for h in range(headers):
             self.fragments.append(Fragment('header',header_duration, self.channels[h], self.id))
