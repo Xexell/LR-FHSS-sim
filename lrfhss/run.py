@@ -24,12 +24,16 @@ def run_sim(settings: Settings, seed=0):
 
     # after simulation
     success = sum(bs.packets_received.values())
-    transmitted = sum(n.transmitted for n in nodes) 
+    transmitted = sum(n.transmitted for n in nodes)
+
     if transmitted == 0: #If no transmissions are made, we consider 100% success as there were no outages
         return 1
     else:
-        return [[success/transmitted], [success*settings.payload_size]]
+        return [[success/transmitted], [success*settings.payload_size], [transmitted]]
 
+    #Get the average success per device, used to plot the CDF 
+    #success_per_device = [1 if n.transmitted == 0 else bs.packets_received[n.id]/n.transmitted for n in nodes]
+    #return success_per_device
 if __name__ == "__main__":
    s = Settings()
    print(run_sim(s))
