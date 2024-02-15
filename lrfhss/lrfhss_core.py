@@ -41,12 +41,12 @@ class Packet():
 
 
 class Node():
-    def __init__(self, obw, headers, payloads, header_duration, payload_duration, traffic_func, traffic_param):
+    def __init__(self, obw, headers, payloads, header_duration, payload_duration, transceiver_wait, traffic_func, traffic_param):
         self.id = id(self)
         self.transmitted = 0
         self.traffic_func = traffic_func
         self.traffic_param = traffic_param
-
+        self.transceiver_wait = transceiver_wait
         # Packet info that Node has to store
         self.obw = obw
         self.headers = headers
@@ -61,6 +61,36 @@ class Node():
     def end_of_transmission(self):
         self.packet = Packet(self.id, self.obw, self.headers, self.payloads, self.header_duration, self.payload_duration)
 
+    def transmit(self, env, bs):
+        while 1:
+            #time between transmissions
+            yield env.timeout(self.next_transmission())
+            self.transmitted += 1
+            bs.add_packet(self.packet)
+            next_fragment = self.packet.next()
+            first_payload = 0
+            while next_fragment:
+                if first_payload == 0 and next_fragment.type=='payload': #account for the transceiver wait time between the last header and first payload fragment
+                    first_payload=1
+                    yield env.timeout(self.transceiver_wait)
+                next_fragment.timestamp = env.now
+                #checks if the fragment is colliding with the fragments in transmission now
+                bs.check_collision(next_fragment)
+                #add the fragment to the list of fragments being transmitted.
+                bs.receive_packet(next_fragment)
+                #wait the duration (time on air) of the fragment
+                yield env.timeout(next_fragment.duration)
+                #removes the fragment from the list.
+                bs.finish_fragment(next_fragment)
+                #check if base can decode the packet now.
+                #tries to decode if not decoded yet.
+                if self.packet.success == 0:
+                    bs.try_decode(self.packet,env.now)
+                #select the next fragment
+                next_fragment = self.packet.next()
+            
+            #end of transmission procedure
+            self.end_of_transmission()
 
 class Base():
     def __init__(self, obw, threshold):
@@ -101,36 +131,3 @@ class Base():
             return True
         else:
             return False
-
-
-
-def transmit(env, bs, node, transceiver_wait):
-    while 1:
-        #time between transmissions
-        yield env.timeout(node.next_transmission())
-        node.transmitted += 1
-        bs.add_packet(node.packet)
-        next_fragment = node.packet.next()
-        first_payload = 0
-        while next_fragment:
-            if first_payload == 0 and next_fragment.type=='payload': #account for the transceiver wait time between the last header and first payload fragment
-                first_payload=1
-                yield env.timeout(transceiver_wait)
-            next_fragment.timestamp = env.now
-            #checks if the fragment is colliding with the fragments in transmission now
-            bs.check_collision(next_fragment)
-            #add the fragment to the list of fragments being transmitted.
-            bs.receive_packet(next_fragment)
-            #wait the duration (time on air) of the fragment
-            yield env.timeout(next_fragment.duration)
-            #removes the fragment from the list.
-            bs.finish_fragment(next_fragment)
-            #check if base can decode the packet now.
-            #tries to decode if not decoded yet.
-            if node.packet.success == 0:
-                bs.try_decode(node.packet,env.now)
-            #select the next fragment
-            next_fragment = node.packet.next()
-        
-        #end of transmission procedure
-        node.end_of_transmission()
