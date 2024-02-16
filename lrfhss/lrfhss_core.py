@@ -36,8 +36,8 @@ class Packet():
         
 # Instead of grid selection, we consider one grid of obw (usually 35 for EU) channels, as it is faster to simulate and extrapolate the number.
 # Later we can implement the grid selection in case of interest of studying it.
-    def new_channels(self, obw, fragments):
-        self.channels = random.sample(range(obw), fragments)
+#    def new_channels(self, obw, fragments):
+#        self.channels = random.sample(range(obw), fragments)
 
 
 class Node():
