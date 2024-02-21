@@ -1,5 +1,6 @@
 import random
 import numpy as np
+from abc import ABC, abstractmethod
 
         
 class Fragment():
@@ -39,6 +40,15 @@ class Packet():
 #    def new_channels(self, obw, fragments):
 #        self.channels = random.sample(range(obw), fragments)
 
+
+class Traffic(ABC):
+    @abstractmethod
+    def __init__(self, traffic_param):
+        self.traffic_param = traffic_param
+
+    @abstractmethod
+    def traffic_function(self):
+        pass
 
 class Node():
     def __init__(self, obw, headers, payloads, header_duration, payload_duration, transceiver_wait, traffic_func, traffic_param):
