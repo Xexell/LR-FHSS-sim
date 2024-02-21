@@ -61,20 +61,27 @@ class Settings():
             match traffic_func.__name__:
                 case 'exponential_traffic':
                     if not 'average_interval' in self.traffic_param:
-                        warnings.warn(f'traffic_param average_interval key missing for exponential_traffic. Using with average_interval=900 as default')
+                        warnings.warn(f'traffic_param average_interval key missing for exponential_traffic. Using average_interval=900 as default')
                         self.traffic_param['average_interval'] = 900
                 case 'uniform_traffic':
                     if not 'max_interval' in self.traffic_param:
-                        warnings.warn(f'traffic_param max_interval key missing for uniform_traffic. Using with max_interval=1800 as default')
+                        warnings.warn(f'traffic_param max_interval key missing for uniform_traffic. Using max_interval=1800 as default')
                         self.traffic_param['max_interval'] = 1800
                 case 'constant_traffic':
                     if not 'constant_interval' in self.traffic_param:
-                        warnings.warn(f'traffic_param constant_interval key missing for constant_traffic. Using with constant_interval=900 as default')
+                        warnings.warn(f'traffic_param constant_interval key missing for constant_traffic. Using constant_interval=900 as default')
                         self.traffic_param['constant_interval'] = 900
 
                     if not 'standard_deviation' in self.traffic_param:
-                        warnings.warn(f'traffic_param standard_deviation key missing for constant_traffic. Using with standard_deviation=900 as default')
+                        warnings.warn(f'traffic_param standard_deviation key missing for constant_traffic. Using standard_deviation=900 as default')
                         self.traffic_param['standard_deviation'] = 10
+                case 'two_state_markovian_traffic':
+                    if not 'transition_matrix' in self.traffic_param:
+                        warnings.warn(f'traffic_param transition_matrix key missing for two_state_markovian_traffic. Using transition_matrix=[0.5, 0.5; 0.5, 0.5] as default')
+                        self.traffic_param['transition_matrix'] = [[0.5, 0.5],[0.5, 0.5]]
+                    if not 'markov_time' in self.traffic_param:
+                        warnings.warn(f'traffic_param markov_time key missing for two_state_markovian_traffic. Using markov_time=0.5 as default')
+                        self.traffic_param['markov_time'] = 0.5
                 case _:
                     warnings.warn(f'Using an unpredicted (not listed in settings.py) traffic function.')
 
