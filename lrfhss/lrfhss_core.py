@@ -51,11 +51,10 @@ class Traffic(ABC):
         pass
 
 class Node():
-    def __init__(self, obw, headers, payloads, header_duration, payload_duration, transceiver_wait, traffic_func, traffic_param):
+    def __init__(self, obw, headers, payloads, header_duration, payload_duration, transceiver_wait, traffic_generator):
         self.id = id(self)
         self.transmitted = 0
-        self.traffic_func = traffic_func
-        self.traffic_param = traffic_param
+        self.traffic_generator = traffic_generator
         self.transceiver_wait = transceiver_wait
         # Packet info that Node has to store
         self.obw = obw
@@ -66,7 +65,7 @@ class Node():
         self.packet = Packet(self.id, self.obw, self.headers, self.payloads, self.header_duration, self.payload_duration)
 
     def next_transmission(self):
-        return self.traffic_func(self)
+        return self.traffic_generator.traffic_function()
 
     def end_of_transmission(self):
         self.packet = Packet(self.id, self.obw, self.headers, self.payloads, self.header_duration, self.payload_duration)

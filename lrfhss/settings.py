@@ -55,7 +55,7 @@ class Settings():
         
         self.time_on_air = self.header_duration*self.headers + self.payload_duration*self.payloads + self.transceiver_wait
 
-        if not inspect.issubclass(traffic_class, Traffic):
+        if not issubclass(traffic_class, Traffic):
             warnings.warn(f'Using an invalid traffic class.')
             exit(1)
 
