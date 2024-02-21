@@ -7,7 +7,7 @@ class Exponential_Traffic(Traffic):
     def __init__(self, traffic_param):
         super().__init__(traffic_param)
         if not 'average_interval' in self.traffic_param:
-            warnings.warn(f'traffic_param average_interval key missing for exponential_traffic. Using with average_interval=900 as default')
+            warnings.warn(f'traffic_param average_interval key missing for Exponential_Traffic. Using with average_interval=900 as default')
             self.traffic_param['average_interval'] = 900
 
     def traffic_function(self):
@@ -18,7 +18,7 @@ class Uniform_Traffic(Traffic):
     def __init__(self, traffic_param):
         super().__init__(traffic_param)
         if not 'max_interval' in self.traffic_param:
-            warnings.warn(f'traffic_param max_interval key missing for uniform_traffic. Using with max_interval=1800 as default')
+            warnings.warn(f'traffic_param max_interval key missing for Uniform_Traffic. Using with max_interval=1800 as default')
             self.traffic_param['max_interval'] = 1800
 
     def traffic_function(self):
@@ -29,11 +29,11 @@ class Constant_Traffic(Traffic):
     def __init__(self, traffic_param):
         super().__init__(traffic_param)
         if not 'constant_interval' in self.traffic_param:
-            warnings.warn(f'traffic_param constant_interval key missing for constant_traffic. Using with constant_interval=900 as default')
+            warnings.warn(f'traffic_param constant_interval key missing for Constant_Traffic. Using with constant_interval=900 as default')
             self.traffic_param['constant_interval'] = 900
 
         if not 'standard_deviation' in self.traffic_param:
-            warnings.warn(f'traffic_param standard_deviation key missing for constant_traffic. Using with standard_deviation=900 as default')
+            warnings.warn(f'traffic_param standard_deviation key missing for Constant_Traffic. Using with standard_deviation=900 as default')
             self.traffic_param['standard_deviation'] = 10
 
     def traffic_function(self):
@@ -45,15 +45,16 @@ class Constant_Traffic(Traffic):
     
 
 ## 2-state Markovian Traffic
-class Markovian_Traffic(Traffic):
+class Two_State_Markovian_Traffic(Traffic):
     def __init__(self, traffic_param):
         super().__init__(traffic_param)
         if not 'transition_matrix' in self.traffic_param:
-            warnings.warn(f'traffic_param transition_matrix key missing for markovian_traffic. Using with standard_deviation=900 as default')
-            self.traffic_param['standard_deviation'] = 10
+            warnings.warn(f'traffic_param transition_matrix key missing for Two_State_Markovian_Traffic. Using transition_matrix=[0.5, 0.5; 0.5, 0.5] as default')
+            self.traffic_param['transition_matrix'] = [[0.5, 0.5],[0.5, 0.5]]
         
         if not 'markov_time' in self.traffic_param:
-            w
+            warnings.warn(f'traffic_param markov_time key missing for Two_State_Markovian_Traffic. Using markov_time=0.5 as default')
+            self.traffic_param['markov_time'] = 0.5
 
     def traffic_function(self):
         discrete_time = 1
