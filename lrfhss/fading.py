@@ -58,7 +58,7 @@ class Nakagami_M_Fading(Fading):
         #TODO: Implementar
         m = self.fading_param['m']
         omega = self.fading_param['omega']
-        return nakagami.rvs(m, scale=omega/m)
+        return nakagami.rvs(m, scale=(omega*np.sqrt(2)))
         return random.expovariate(1/self.fading_param['average_interval'])
     
 ## No fading
