@@ -17,9 +17,7 @@ class Rayleigh_Fading(Fading):
     def fading_function(self):
         #TODO: Implementar
         scale = self.fading_param['scale']
-        return rayleigh.rvs(scale=scale)
-        return random.expovariate(1/self.fading_param['average_interval'])
-        
+        return rayleigh.rvs(scale=scale)        
     
 ## Rician fading
 class Rician_Fading(Fading):
@@ -30,18 +28,12 @@ class Rician_Fading(Fading):
             warnings.warn(f'traffic_param k key missing for Rician_Fading. Using with k=3 as default')
             self.fading_param['k'] = 3
         
-        if not 'sigma' in self.fading_param:
-            warnings.warn(f'traffic_param sigma key missing for Rician_Fading. Using with sigma=1 as default')
-            self.fading_param['sigma'] = 1
-
     def fading_function(self):
         #TODO: Implementar
-        k = self.fading_param['k']
-        sigma = self.fading_param['sigma']
-        s = np.sqrt(k / (k+1)) * sigma # Componente LOS normalizado
-        return rice.rvs(s/sigma, scale=sigma)
-        return random.expovariate(1/self.fading_param['average_interval'])
+        K = self.fading_param['k']
 
+        return rice.rvs(np.sqrt(2*K), scale= 1/np.sqrt(2*(K+1)))
+        
 ## Nakagami-m fading
 class Nakagami_M_Fading(Fading):
     def __init__(self, fading_param):
@@ -58,8 +50,7 @@ class Nakagami_M_Fading(Fading):
         #TODO: Implementar
         m = self.fading_param['m']
         omega = self.fading_param['omega']
-        return nakagami.rvs(m, scale=(omega*np.sqrt(2)))
-        return random.expovariate(1/self.fading_param['average_interval'])
+        return nakagami.rvs(m, scale=omega)
     
 ## No fading
 class No_Fading(Fading):
