@@ -1,5 +1,6 @@
 import random
 import numpy as np
+import copy
 from abc import ABC, abstractmethod
 
         
@@ -50,6 +51,29 @@ class Traffic(ABC):
     def traffic_function(self):
         pass
 
+
+class Node_Distribution(ABC):
+    @abstractmethod
+    def __init__(self, node_distribution_param):
+        self.node_distribution_param = node_distribution_param
+
+    @abstractmethod
+    def node_distribution_function(self):
+        pass
+
+class Gateway_Distribution(ABC):
+    @abstractmethod
+    def __init__(self, gateway_distribution_param):
+        self.gateway_distribution_param = gateway_distribution_param
+
+    @abstractmethod
+    def gateway_distribution_function(self):
+        pass
+
+    @abstractmethod
+    def get_distance(self):
+        pass
+
 class Node():
     def __init__(self, obw, headers, payloads, header_duration, payload_duration, transceiver_wait, traffic_generator):
         self.id = id(self)
@@ -62,53 +86,76 @@ class Node():
         self.payloads = payloads
         self.header_duration = header_duration
         self.payload_duration = payload_duration
+        self.total_fragments_transmitted = 0
+        self.total_fragments_success = 0
         self.packet = Packet(self.id, self.obw, self.headers, self.payloads, self.header_duration, self.payload_duration)
 
     def next_transmission(self):
         return self.traffic_generator.traffic_function()
 
     def end_of_transmission(self):
+        for fragment in self.packet.fragments:
+            if fragment.success == 1:
+                self.total_fragments_success += 1
+            if fragment.transmitted == 1:
+                self.total_fragments_transmitted += 1
         self.packet = Packet(self.id, self.obw, self.headers, self.payloads, self.header_duration, self.payload_duration)
 
     def transmit(self, env, bs):
+        if not isinstance(bs, list):
+            bs_list = [bs]
+        else:
+            bs_list = bs
         while 1:
             #time between transmissions
             yield env.timeout(self.next_transmission())
             self.transmitted += 1
-            bs.add_packet(self.packet)
-            next_fragment = self.packet.next()
-            first_payload = 0
-            while next_fragment:
-                if first_payload == 0 and next_fragment.type=='payload': #account for the transceiver wait time between the last header and first payload fragment
-                    first_payload=1
-                    yield env.timeout(self.transceiver_wait)
-                next_fragment.timestamp = env.now
-                #checks if the fragment is colliding with the fragments in transmission now
-                bs.check_collision(next_fragment)
-                #add the fragment to the list of fragments being transmitted.
-                bs.receive_packet(next_fragment)
-                #wait the duration (time on air) of the fragment
-                yield env.timeout(next_fragment.duration)
-                #removes the fragment from the list.
-                bs.finish_fragment(next_fragment)
-                #check if base can decode the packet now.
-                #tries to decode if not decoded yet.
-                if self.packet.success == 0:
-                    bs.try_decode(self.packet,env.now)
-                #select the next fragment
-                next_fragment = self.packet.next()
-            
-            #end of transmission procedure
-            self.end_of_transmission()
+            packet_copies = {base: copy.deepcopy(self.packet) for base in bs_list}
+            for base in bs_list:
+                base.add_packet(packet_copies[base])
 
+        next_fragment_idx = 0
+        first_payload = 0
+        while True:
+            # Get the next fragment index (same for all bases)
+            try:
+                orig_fragment = self.packet.fragments[next_fragment_idx]
+            except IndexError:
+                break
+
+            if first_payload == 0 and orig_fragment.type == 'payload':
+                first_payload = 1
+                yield env.timeout(self.transceiver_wait)
+
+            # For each base, process its own fragment copy
+            for base in bs_list:
+                frag_copy = packet_copies[base].fragments[next_fragment_idx]
+                frag_copy.timestamp = env.now
+                base.check_collision(frag_copy)
+                base.receive_packet(frag_copy)
+
+            yield env.timeout(orig_fragment.duration)
+
+            for base in bs_list:
+                frag_copy = packet_copies[base].fragments[next_fragment_idx]
+                base.finish_fragment(frag_copy)
+                if packet_copies[base].success == 0:
+                    base.try_decode(packet_copies[base], env.now)
+
+            next_fragment_idx += 1
+        packet_success = any(p_copy.success == 1 for p_copy in packet_copies.values())
+        self.packet.success = 1 if packet_success else 0
+
+        self.end_of_transmission()
 class Base():
-    def __init__(self, obw, threshold):
+    def __init__(self, obw, threshold, base_position=None):
         self.id = id(self)
         self.transmitting = {}
         for channel in range(obw):
             self.transmitting[channel] = []
         self.packets_received = {}
         self.threshold = threshold
+        self.base_position = base_position
 
     def add_packet(self, packet):
         pass
@@ -120,7 +167,8 @@ class Base():
         self.transmitting[fragment.channel].append(fragment)
 
     def finish_fragment(self, fragment):
-        self.transmitting[fragment.channel].remove(fragment)
+        if fragment in self.transmitting[fragment.channel]:
+            self.transmitting[fragment.channel].remove(fragment)
         if len(fragment.collided) == 0:
             fragment.success = 1
         fragment.transmitted = 1
