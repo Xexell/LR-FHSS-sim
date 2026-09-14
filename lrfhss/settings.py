@@ -5,9 +5,25 @@ import inspect
 
 
 class Settings():
+    """Network configuration for a simulation run.
+
+    This is the "config file" of the simulator: every network parameter has a
+    sensible default, so a run is ``Settings()`` plus whatever you want to
+    override. Physical/traffic parameters (payload, headers, obw, traffic...)
+    and network-layout parameters (``base``, gateways, antennas, radii) all
+    live here; ``run.py`` only wires the chosen scenario to the core classes.
+
+    Feel free to add your own parameters, which is specially useful when you
+    want to change them over iterations outside the simulator. The simulator
+    will ignore any extra parameters, but you can use them in your own scenario code.
+    """
+
     def __init__(self, number_nodes=80000//8, simulation_time=60*60, payload_size = 10, headers = 3, header_duration = 0.233472, payloads = None, threshold = None, payload_duration = 0.1024,
-                 code = '1/3', traffic_class = Exponential_Traffic, traffic_param = {'average_interval': 900}, transceiver_wait = 0.006472, obw = 35, base='core', window_size = 2, window_step = 0.5):
-        
+                 code = '1/3', traffic_class = Exponential_Traffic, traffic_param = {'average_interval': 900}, transceiver_wait = 0.006472, obw = 35,
+                 base='core', window_size = 2, window_step = 0.5, gateway_antenna_gain = 0,
+                 node_antenna_gain = 0, number_gateways = 0, node_radius = 80_000,
+                 coverage_radius = 25_000, haps_altitude = 30_000, terrestrial_gate_gain = 6):
+
         self.number_nodes = number_nodes
         self.simulation_time = simulation_time
         self.payload_size = payload_size
@@ -19,7 +35,17 @@ class Settings():
         self.base = base
         self.window_size = window_size
         self.window_step = window_step
+        self.gateway_antenna_gain = gateway_antenna_gain
 
+        # --- network layout (all optional, defaulted) ---
+        self.node_antenna_gain = node_antenna_gain    # dBi, gain of each device antenna
+        self.number_gateways = number_gateways        # fixed terrestrial LoRa gates added to the scenario (0 = none)
+        self.node_radius = node_radius                # m, radius of the devices' uniform circular distribution
+        self.coverage_radius = coverage_radius        # m, node only reaches gates within this range
+        self.haps_altitude = haps_altitude            # m, HAPS altitude for the 'haps' scenario
+        self.terrestrial_gate_gain = terrestrial_gate_gain  # dBi, gain of the fixed terrestrial LoRa gates
+
+        
         if payloads:
             self.payloads = payloads
         if threshold:
