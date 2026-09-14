@@ -10,6 +10,7 @@ class Fragment():
         self.duration = duration
         self.success = 0
         self.transmitted = 0
+        self.erased = 0
         self.type = type
         self.channel = channel
         self.timestamp = 0
@@ -75,7 +76,7 @@ class Gateway_Distribution(ABC):
         pass
 
 class Node():
-    def __init__(self, obw, headers, payloads, header_duration, payload_duration, transceiver_wait, traffic_generator):
+    def __init__(self, obw, headers, payloads, header_duration, payload_duration, transceiver_wait, traffic_generator, stats=None):
         self.id = id(self)
         self.transmitted = 0
         self.traffic_generator = traffic_generator
@@ -89,7 +90,7 @@ class Node():
         self.total_fragments_transmitted = 0
         self.total_fragments_success = 0
         self.packet = Packet(self.id, self.obw, self.headers, self.payloads, self.header_duration, self.payload_duration)
-
+        self.stats = stats
     def next_transmission(self):
         return self.traffic_generator.traffic_function()
 
@@ -110,45 +111,48 @@ class Node():
             #time between transmissions
             yield env.timeout(self.next_transmission())
             self.transmitted += 1
+            self.stats.register_transmission(self.id) if self.stats else None
             packet_copies = {base: copy.deepcopy(self.packet) for base in bs_list}
             for base in bs_list:
                 base.add_packet(packet_copies[base])
 
-        next_fragment_idx = 0
-        first_payload = 0
-        while True:
-            # Get the next fragment index (same for all bases)
-            try:
-                orig_fragment = self.packet.fragments[next_fragment_idx]
-            except IndexError:
-                break
+            next_fragment_idx = 0
+            first_payload = 0
+            while True:
+                # Get the next fragment index (same for all bases)
+                try:
+                    orig_fragment = self.packet.fragments[next_fragment_idx]
+                except IndexError:
+                    break
 
-            if first_payload == 0 and orig_fragment.type == 'payload':
-                first_payload = 1
-                yield env.timeout(self.transceiver_wait)
+                if first_payload == 0 and orig_fragment.type == 'payload':
+                    first_payload = 1
+                    yield env.timeout(self.transceiver_wait)
 
-            # For each base, process its own fragment copy
-            for base in bs_list:
-                frag_copy = packet_copies[base].fragments[next_fragment_idx]
-                frag_copy.timestamp = env.now
-                base.check_collision(frag_copy)
-                base.receive_packet(frag_copy)
+                # For each base, process its own fragment copy
+                for base in bs_list:
+                    frag_copy = packet_copies[base].fragments[next_fragment_idx]
+                    frag_copy.timestamp = env.now
+                    self.stats.register_fragment_transmission(self.id) if self.stats else None
+                    base.check_collision(frag_copy)
+                    base.receive_packet(frag_copy)
 
-            yield env.timeout(orig_fragment.duration)
+                yield env.timeout(orig_fragment.duration)
 
-            for base in bs_list:
-                frag_copy = packet_copies[base].fragments[next_fragment_idx]
-                base.finish_fragment(frag_copy)
-                if packet_copies[base].success == 0:
-                    base.try_decode(packet_copies[base], env.now)
+                for base in bs_list:
+                    frag_copy = packet_copies[base].fragments[next_fragment_idx]
+                    base.finish_fragment(frag_copy)
+                    if packet_copies[base].success == 0:
+                        base.try_decode(packet_copies[base], env.now)
 
-            next_fragment_idx += 1
-        packet_success = any(p_copy.success == 1 for p_copy in packet_copies.values())
-        self.packet.success = 1 if packet_success else 0
-
-        self.end_of_transmission()
+                next_fragment_idx += 1
+            # After all fragments are processed, check if any base successfully received the packet
+            self.packet.success = int(any(p_copy.success == 1 for p_copy in packet_copies.values()))
+            if self.packet.success == 1:
+                self.stats.register_success(self.id) if self.stats else None
+            self.end_of_transmission()
 class Base():
-    def __init__(self, obw, threshold, base_position=None):
+    def __init__(self, obw, threshold, base_position=None, stats=None):
         self.id = id(self)
         self.transmitting = {}
         for channel in range(obw):
@@ -156,7 +160,7 @@ class Base():
         self.packets_received = {}
         self.threshold = threshold
         self.base_position = base_position
-
+        self.stats = stats
     def add_packet(self, packet):
         pass
 
@@ -188,3 +192,50 @@ class Base():
             return True
         else:
             return False
+
+class SimulationStats:
+    """Global counters for one simulation run, shared by all nodes and bases.
+
+    Registered by ``Node.transmit`` (transmissions/successes) and by
+    ``FadingNode``/``FadingBase`` (erased fragments). See ``run_sim`` in
+    ``lrfhss/run.py`` for how the totals map onto the returned results.
+    """
+
+    def __init__(self):
+        self.total_transmissions = 0
+        self.total_fragments_transmitted = 0
+        self.total_success = 0
+        self.total_erased = 0
+        self.total_nodes = 0
+        self.success_per_node = {}
+        self.erased_per_node = {}
+        self.fragment_transmitted_per_node = {}
+
+    def register_transmission(self, node_id):
+        self.total_transmissions += 1
+        self.success_per_node.setdefault(node_id, 0)
+        self.erased_per_node.setdefault(node_id, 0)
+        self.fragment_transmitted_per_node.setdefault(node_id, 0)
+
+    def register_fragment_transmission(self, node_id):
+        self.total_fragments_transmitted += 1
+        self.fragment_transmitted_per_node[node_id] = self.fragment_transmitted_per_node.get(node_id, 0) + 1
+
+    def register_success(self, node_id):
+        self.total_success += 1
+        self.success_per_node[node_id] = self.success_per_node.get(node_id, 0) + 1
+
+    def register_erased(self, node_id):
+        self.total_erased += 1
+        self.erased_per_node[node_id] = self.erased_per_node.get(node_id, 0) + 1
+
+    def summary(self):
+        return {
+            "total_transmissions": self.total_transmissions,
+            "total_fragments_transmissions": self.total_fragments_transmitted,
+            "total_success": self.total_success,
+            "total_erased": self.total_erased,
+            "success_per_node": self.success_per_node,
+            "erased_per_node": self.erased_per_node,
+        }
+
